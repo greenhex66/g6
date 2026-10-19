@@ -1,0 +1,39 @@
+name: Build Fracture (Windows)
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -A x64
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Collect VST3
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $vst = Get-ChildItem -Path build -Recurse -Directory -Filter "Fracture.vst3" | Select-Object -First 1
+          Copy-Item -Path $vst.FullName -Destination "dist/Fracture.vst3" -Recurse
+          Compress-Archive -Path "dist/Fracture.vst3" -DestinationPath "Fracture-VST3-manual.zip"
+
+      - name: Build installer
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "installer\fracture.iss"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fracture-Windows
+          path: |
+            Fracture-Setup.exe
+            Fracture-VST3-manual.zip
